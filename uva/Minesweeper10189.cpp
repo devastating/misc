@@ -73,6 +73,7 @@ void MinesweeperOutput(string *prev,
     return;
 }
 
+// unit test function for MinsweeperOutput
 void TestMinesweeperOutput()
 {
     string prev(4, '.');
@@ -129,8 +130,6 @@ int main()
         {
             break;
         }
-        //cout << "Row: " << row << " Col: " << col <<endl;
-        if (fields > 1) cout << endl;
         cout << "Field #" << fields <<":" << endl;
         fields++;
        
@@ -184,6 +183,7 @@ int main()
             }
             cout << result << endl;
         }
+        cout << endl;
     }
     return 0;
 }
