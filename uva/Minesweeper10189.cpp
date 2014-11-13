@@ -45,15 +45,13 @@ static inline int NEXT(int cur, int max)
 void MinesweeperOutput(string *prev,
                        string *next,
                        string *current,
-                       string *result)
+                       string *result,
+                       int col)
 {
-    assert(prev->size() == next->size());
-    assert(prev->size() == current->size());
-
     unsigned int iter = 0;
     int value = 0;
 
-    for (iter = 0; iter < prev->size(); iter++)
+    for (iter = 0; iter < col; iter++)
     {
         value = 0;
         if (current->at(iter) == '*') 
@@ -63,7 +61,7 @@ void MinesweeperOutput(string *prev,
         }
         for (int idx = -1; idx < 2; idx++)
         {
-            if ((iter + idx < 0) || (iter + idx >= prev->size())) continue;
+            if ((iter + idx < 0) || (iter + idx >= col)) continue;
             if (prev->at(iter + idx) == '*') value++;
             if (next->at(iter + idx) == '*') value++;
             if (current->at(iter + idx) == '*') value++;
@@ -71,40 +69,6 @@ void MinesweeperOutput(string *prev,
         result->at(iter) = value + '0';
     }
     return;
-}
-
-// unit test function for MinsweeperOutput
-void TestMinesweeperOutput()
-{
-    string prev(4, '.');
-    string next(4, '.');
-    string current(4, '.');
-    string result(4, 0);
-
-    prev.at(1) = '*';
-    //next.at(1) = '*';
-    //current.at(1) = '*';
-    MinesweeperOutput(&prev, &next, &current, &result);
-    for (unsigned i = 0; i < result.size(); i++)
-    {
-        cout<< prev.at(i) << " ";
-    }
-    cout<< endl;
-    for (unsigned i = 0; i < result.size(); i++)
-    {
-        cout<< current.at(i) << " ";
-    }
-    cout<< endl;
-    for (unsigned i = 0; i < result.size(); i++)
-    {
-        cout<< next.at(i) << " ";
-    }
-    cout<< endl;
-    for (unsigned i = 0; i < result.size(); i++)
-    {
-        cout<< result.at(i) << " ";
-    }
-    cout<< endl;
 }
 
 static void GetColRow(string *line, int *row, int *col)
@@ -169,7 +133,7 @@ int main()
             MinesweeperOutput(&process_lines.at(PREV(current, 3)),
                               &process_lines.at(NEXT(current, 3)),
                               &process_lines.at(current),
-                              &result);
+                              &result, col);
             current = NEXT(current, 3);
             if (readlines)
             {
@@ -181,7 +145,7 @@ int main()
             {
                 process_lines.at(NEXT(current, 3)) = reset_line.substr(0, col);
             }
-            cout << result << endl;
+            cout << result.substr(0, col) << endl;
         }
         cout << endl;
     }
