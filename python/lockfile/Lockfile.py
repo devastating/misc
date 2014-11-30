@@ -63,7 +63,7 @@ def UnitTestBase():
         time.sleep(1)
         assert(ReleaseFile(tempFile) is True)
     except Exception:
-        pass
+        print "<Fail> basic locking"
     os.unlink(tempFile)
 
 
@@ -78,11 +78,11 @@ def UnitTestCannotLock():
         assert(LockFile(tempFile) is True)
         time.sleep(1)
         # Try to lock again..it should return False
-        assert(LockFile(tempFile, retry=10, timeout=0.2) is True)
+        assert(LockFile(tempFile, retry=10, timeout=0.2) is False)
         time.sleep(1)
         assert(ReleaseFile(tempFile) is True)
     except Exception:
-        pass
+        print "<Fail> cannot lock when it's been locked"
     os.unlink(tempFile)
 
 if __name__ == "__main__":
