@@ -94,6 +94,7 @@ int main()
         {
             break;
         }
+        if (fields > 1) cout << endl;
         cout << "Field #" << fields <<":" << endl;
         fields++;
        
@@ -147,7 +148,7 @@ int main()
             }
             cout << result.substr(0, col) << endl;
         }
-        cout << endl;
+        //cout << endl;
     }
     return 0;
 }
