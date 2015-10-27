@@ -2,6 +2,8 @@
 
 using namespace std;
 
+// If current sum has becomes negative, just started from this num
+
 class Solution {
     public:
         int maxSubArray(vector<int>& nums) {
