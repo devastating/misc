@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <list>
 #include <climits>
 #include <assert.h>
+#include <algorithm>
