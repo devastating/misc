@@ -14,9 +14,10 @@
 #include <unordered_map>
 
 template<typename _vector_type>
-static inline void print_vector(std::vector<_vector_type> in)
+static inline void print_vector(std::vector<_vector_type> in,
+                                std::string title = "Input")
 {
-    std::cout << "Input: ";
+    std::cout << title << ": ";
     for (auto item: in)
     {
         std::cout << item << " ";
