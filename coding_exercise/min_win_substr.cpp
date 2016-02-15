@@ -1,8 +1,5 @@
-#include <iostream>
-#include <string>
-#include <set>
-#include <map>
-#include <list>
+#include "basic_includes.hpp"
+
 using namespace std;
 
 // Minimum Window Substring
@@ -22,109 +19,93 @@ class Solution
         string minWindow(string s, string t)
         {
             map<char, int> t_cnt_map;
-
-            // Create t char to counter map
-            for (auto t_iter: t)
+            for (auto char_t: t)
             {
-                if (t_cnt_map.find(t_iter) == t_cnt_map.end())
+                if (t_cnt_map.find(char_t) == t_cnt_map.end())
                 {
-                    t_cnt_map[t_iter] = 1;
+                    t_cnt_map[char_t] = 1;
                 }
                 else
                 {
-                    t_cnt_map[t_iter] += 1;
+                    t_cnt_map[char_t] += 1;
                 }
             }
-
-            map<char, int> s_cnt_map;
-            auto t_cnt_map_copy = t_cnt_map;
-            int begin_idx = -1, win_sz = 0;
-            size_t s_idx;
-            for (s_idx = 0; s_idx < s.length(); s_idx++)
+            // First find a substring with all t
+            auto check_t_cnt_map = t_cnt_map;
+            // Used to make sure we maintain subset
+            map<char, int> current_set;
+            int begin = -1, final_begin = 0, len = 0;
+            for (size_t i = 0; i < s.size(); i++)
             {
-                // Skip irrevalent
-                if (t_cnt_map.find(s[s_idx]) == t_cnt_map.end()) continue;
-
-                if (s_cnt_map.find(s[s_idx]) == s_cnt_map.end())
+                auto this_char = s[i];
+                // Irrelavant
+                if (t_cnt_map.find(this_char) == t_cnt_map.end()) continue;
+                else
                 {
-                    s_cnt_map[s[s_idx]] = 1;
+                    if (begin == -1 && !check_t_cnt_map.empty())
+                    {
+                        begin = i;
+                        final_begin = begin;
+                    }
+                }
+
+                if (current_set.find(this_char) == current_set.end())
+                {
+                    current_set[this_char] = 1;
                 }
                 else
                 {
-                    s_cnt_map[s[s_idx]] += 1;
+                    current_set[this_char] += 1;
                 }
 
-                if (begin_idx == -1)
+                if (check_t_cnt_map.empty() == false)
                 {
-                    begin_idx = s_idx;
-                }
-                if (s[s_idx] == s[begin_idx])
-                {
-                    while (t_cnt_map.find(s[begin_idx]) == t_cnt_map.end() || s_cnt_map[s[begin_idx]] > t_cnt_map[s[begin_idx]])
+                    // Still trying to find set
+                    if (check_t_cnt_map.find(this_char) != check_t_cnt_map.end())
                     {
-                        if (s_cnt_map.find(s[begin_idx]) != s_cnt_map.end())
+                        check_t_cnt_map[this_char] -= 1;
+                        if (check_t_cnt_map[this_char] == 0)
                         {
-                            s_cnt_map[s[begin_idx]] -= 1;
+                            check_t_cnt_map.erase(this_char);
                         }
-                        begin_idx++;
-                    }
-                }
-                if (t_cnt_map_copy.find(s[s_idx]) != t_cnt_map_copy.end())
-                {
-                    t_cnt_map_copy[s[s_idx]] -= 1;
-                    if (t_cnt_map_copy[s[s_idx]] == 0)
-                    {
-                        t_cnt_map_copy.erase(s[s_idx]);
-                    }
-                    if (t_cnt_map_copy.empty())
-                    {
-                        // Found a starting win!
-                        win_sz = s_idx - begin_idx + 1;
-                        cout << "begin win: " << begin_idx << " size " << win_sz << endl;
-                        break;
-                    }
-                }
-            }
-            // No even a window
-            if (win_sz == 0) return string("");
-
-            int win_begin = begin_idx;
-            // Scan rest of s string
-            s_idx++;
-            for (; s_idx < s.length(); s_idx++)
-            {
-                // Skip irrevalent
-                if (t_cnt_map.find(s[s_idx]) == t_cnt_map.end()) continue;
-
-                if (s_cnt_map.find(s[s_idx]) == s_cnt_map.end())
-                {
-                    s_cnt_map[s[s_idx]] = 1;
-                }
-                else
-                {
-                    s_cnt_map[s[s_idx]] += 1;
-                }                
-                if (s[s_idx] == s[begin_idx])
-                {
-                    while (t_cnt_map.find(s[begin_idx]) == t_cnt_map.end() || s_cnt_map[s[begin_idx]] > t_cnt_map[s[begin_idx]])
-                    {
-                        if (s_cnt_map.find(s[begin_idx]) != s_cnt_map.end())
+                        if (check_t_cnt_map.empty())
                         {
-                            s_cnt_map[s[begin_idx]] -= 1;
+                            // Find first qualified substr
+                            len = i - begin + 1;
                         }
-                        begin_idx++;
                     }
-                    // Calculate new window length
-                    int new_win_len = s_idx - begin_idx + 1;
-                    if (new_win_len < win_sz)
+                }
+
+                if (check_t_cnt_map.empty() == true)
+                {
+                    for (; begin < s.length(); begin++)
                     {
-                        win_begin = begin_idx;
-                        win_sz = new_win_len;
-                        cout << "new win: " << begin_idx << " size " << win_sz << endl;
+                        if (t_cnt_map.find(s[begin]) == t_cnt_map.end())
+                        {
+                            continue;
+                        }
+                        if (current_set[s[begin]] <= t_cnt_map[s[begin]])
+                        {
+                            break;
+                        }
+                        current_set[s[begin]] -= 1;
+                    }
+                    int new_len = i - begin + 1;
+                    if (new_len < len)
+                    {
+                        len = new_len;
+                        final_begin = begin;
                     }
                 }
             }
-            return s.substr(win_begin, win_sz);
+            if (len)
+            {
+                return s.substr(final_begin, len);
+            }
+            else
+            {
+                return string();
+            }
         }
 };
 
@@ -195,5 +176,6 @@ int main() {
 	test_4();
 	test_5();
 	test_6();
+    test_7();
 	return 0;
 }
