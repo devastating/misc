@@ -2,6 +2,7 @@
 #include "msg.hpp"
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <thread>
 #include <mutex>
@@ -19,7 +20,10 @@ using std::condition_variable;
 
 uint64_t get_ts_ns()
 {
-    return 100;
+    struct timeval tv;
+    gettimeofday(&tv, nullptr);
+    uint64_t ret = (tv.tv_sec * 1000000 + tv.tv_usec);
+    return ret * 1000;
 }
 
 static void ack_recv_thread_fn(void *ctxt, bool *acked);
@@ -97,7 +101,7 @@ class socket_client
                     client_ts.ts_lsb = ts_now & 0xffffffff;
                     int retry = 0;
                     bool acked = false;
-                    while (retry < 5)
+                    while (retry <= 5)
                     {
                         auto ack_thread = thread(ack_recv_thread_fn, this,
                                                  &acked);
