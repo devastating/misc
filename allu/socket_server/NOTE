@@ -1,0 +1,4 @@
+Compilation:
+
+Server: g++ -std=c++11 -g -pthread socket_utilities.cpp socket_server.cpp -o <server_bin>
+Client: g++ -std=c++11 -g -pthread socket_utilities.cpp socket_client.cpp -o <client_bin>

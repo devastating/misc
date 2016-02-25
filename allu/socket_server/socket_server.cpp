@@ -1,4 +1,7 @@
 #include <string>
+#include <vector>
+#include <thread>
+#include <condition_variable>
 #include <iostream>
 #include <map>
 #include <errno.h>
@@ -12,43 +15,16 @@
 #include <fcntl.h>
 #include <assert.h>
 #include "socket_utilities.hpp"
+#include "msg.hpp"
 
 using std::string;
 using std::cout;
 using std::endl;
 using std::map;
+using std::thread;
+using std::vector;
 
-enum msg_types
-{
-    CONN_REQ = 0,
-    CLIENT_TS,
-    SRV_ACK
-};
-
-struct msg_hdr
-{
-    long type;
-    long len;
-};
-
-struct conn_req_msg
-{
-    struct msg_hdr hdr;
-    char name[256];
-    char passwd[256];
-};
-
-struct client_ts_msg
-{
-    struct msg_hdr hdr;
-    long ts_msb;
-    long ts_lsb;
-};
-
-struct server_ack_msg
-{
-    struct msg_hdr hdr;
-};
+void thread_fn(void *srv, int fd);
 
 class sock_server
 {
@@ -84,16 +60,20 @@ class sock_server
                 if (ready_to_read(m_sock, 1000, &err))
                 {
                     int new_conn_fd = accept_sock_conn(m_sock);
-                    cout << "new connection fd " << new_conn_fd << endl;
-                    close(new_conn_fd);
-                }
-                else
-                {
-                    cout << "No conn..\n";
+                    auto new_conn = new thread(thread_fn, this, new_conn_fd);
+                    m_threads.push_back(new_conn);
                 }
             }
         }
-        void conn_thread_fn(int conn_sock, const map<string, string> *users)
+        void get_user_info(map<string, string> *out)
+        {
+            *out = m_users;
+        }
+        void set_user_info(string user, string passwd)
+        {
+            m_users[user] = passwd;
+        }
+        void conn_handler(int conn_sock, const map<string, string> *users)
         {
             // just in case
             char *buffer = new char [1024];
@@ -101,7 +81,7 @@ class sock_server
 
             do
             {
-                int read_bytes = read_fd(conn_sock, buffer, sizeof(msg_hdr), 100);
+                int read_bytes = read_fd(conn_sock, buffer, sizeof(msg_hdr), 1000);
                 // Client did not send anything
                 if (read_bytes == 0)
                 {
@@ -112,6 +92,7 @@ class sock_server
                 hdr = reinterpret_cast<msg_hdr *>(buffer);
                 if (hdr->type == CONN_REQ)
                 {
+                    cout << "Conn REQ\n";
                     // Check if user/password
                     read_bytes += read_fd(conn_sock, &buffer[sizeof(msg_hdr)],
                                           hdr->len - sizeof(msg_hdr), 100);
@@ -122,16 +103,30 @@ class sock_server
                     string new_user(req_msg->name);
                     string passwd(req_msg->passwd);
                     // FIXME - use C++11 to get iterator and check passwd
-                    //if (users[new_user] != passwd)
+                    auto user_iter = users->find(new_user);
+                    if (user_iter == users->end())
                     {
                         // Abort this connection
                         cout << "User " << new_user << " has invalid passwd\n";
                         break;
                     }
                     valid_user = true;
+                    cout << "User " << new_user << " is valid\n";
+                    // Write connection succeed
+                    conn_succeed_msg succeed_msg;
+                    succeed_msg.hdr.type = CONN_SUCCEED;
+                    succeed_msg.hdr.len = sizeof(succeed_msg);
+                    int written = write_fd(conn_sock, reinterpret_cast<char *>(&succeed_msg),
+                                           sizeof(succeed_msg), 1000);
+                    if (written != sizeof(succeed_msg))
+                    {
+                        // FIXME - retry?
+                        cout << "Cannot send conn succeed\n";
+                    }
                 }
                 else if (hdr->type == CLIENT_TS)
                 {
+                    cout << "Client TS\n";
                     read_bytes += read_fd(conn_sock, &buffer[sizeof(msg_hdr)],
                                           hdr->len - sizeof(msg_hdr), 100);
                     assert(read_bytes == sizeof(client_ts_msg));
@@ -170,12 +165,21 @@ class sock_server
         int m_sock;
         bool m_stop;
         map<string, string> m_users;
+        vector<thread *> m_threads;
 };
 
+void thread_fn(void *ctxt, int fd)
+{
+    auto srv = reinterpret_cast<sock_server *>(ctxt);
+    map<string, string> user_info;
+    srv->get_user_info(&user_info);
+    srv->conn_handler(fd, &user_info);
+}
 
 int main()
 {
     sock_server srv("test_socket");
+    srv.set_user_info("test_user1", "passwd");
     srv.start();
     return 0;
 }
