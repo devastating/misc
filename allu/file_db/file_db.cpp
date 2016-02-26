@@ -1,5 +1,6 @@
 #include <string>
 #include <string.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <iostream>
 
@@ -36,7 +37,7 @@ class file_db
             int order_offset = search_order(new_order->orderID, &tmp_order);
             if (order_offset != -1)
             {
-                cout << "An order with same orderID " << new_order->orderID, " existing\n";
+                cout << "An order with same orderID " << new_order->orderID << " existing\n";
                 return false;
             }
 
@@ -135,10 +136,21 @@ class file_db
         order *m_order_buffer;
 };
 
+void remove_db_file(string db_file)
+{
+    // Remove stale previous test DB
+    string cmd = "rm -rf ";
+    cmd += db_file;
+    system(cmd.c_str());
+}
+
 void test_insert_read()
 {
-    file_db fdb("test_db_file.db");
+    string file_db_name = "test_db_file.db";
+    // Remove stale previous test DB
+    remove_db_file(file_db_name);
 
+    file_db fdb(file_db_name);
     for (int i = 0; i < 1000; i++)
     {
         order new_order;
@@ -163,11 +175,18 @@ void test_insert_read()
         assert(to_read[i].amount == 10 + i + start_order);
     }
     delete [] to_read;
+    // cleanup
+    remove_db_file(file_db_name);
+    cout << "[PASSED] " << __func__ << "\n";
 }
 
 void test_insert_search_update()
 {
-    file_db fdb("test_db_file2.db");
+    string file_db_name = "test_db_file2.db";
+    // Remove stale previous test DB
+    remove_db_file(file_db_name);
+
+    file_db fdb(file_db_name);
 
     for (int i = 0; i < 100; i++)
     {
@@ -207,11 +226,14 @@ void test_insert_search_update()
             assert(res.amount == 2 * i);
         }
     }
+    // cleanup
+    remove_db_file(file_db_name);
+    cout << "[PASSED] " << __func__ << "\n";
 }
-
 
 int main()
 {
+    // Run unit tests;
     test_insert_read();
     test_insert_search_update();
     return 0;

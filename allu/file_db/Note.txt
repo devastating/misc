@@ -1,0 +1,7 @@
+Compilation:
+1. Compiler: GCC 4.7 or above (with std11 support)
+2. Cmd:
+g++ -Wall -std=c++11 -g -pthread file_db.cpp -o <executable>
+
+Run:
+When running executable, it will run two unit tests.

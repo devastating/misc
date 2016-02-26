@@ -1,10 +1,12 @@
 #include <thread>
+#include <string>
+#include <signal.h>
 #include <mutex>
 #include <chrono>
 #include <vector>
 #include <iostream>
-#include <pthread.h>
 
+using std::string;
 using std::thread;
 using std::mutex;
 using std::unique_lock;
@@ -14,10 +16,12 @@ using std::endl;
 using std::vector;
 
 typedef bool(*func)(int *cnt);
+static bool g_running = false;
+// Global mutex
 mutex mtx;
 
 void run_func(int sleep_ms, int increment_cnt, 
-                 int *counter, func print_check)
+              int *counter, func print_check, string name)
 {
     while (true)
     {
@@ -28,7 +32,7 @@ void run_func(int sleep_ms, int increment_cnt,
         {
             int print_value = *counter;
             lck.unlock();
-            cout << "counter: " << print_value << endl << flush;
+            cout << name << " counter: " << print_value << endl << flush;
         }
     }
 }
@@ -48,27 +52,37 @@ bool thread_d_check(int *cnt)
     return (*cnt > 30);
 }
 
+void sig_handler(int signum)
+{
+    g_running = false;
+}
+
 int main()
 {
+    signal(SIGINT, sig_handler);
     //mutex mtx;
     int counter = 0;
     vector<thread *> threads;
     thread *ret;
 
     // Thread A
-    ret = new thread(run_func, 900, 1, &counter, thread_a_check);
+    ret = new thread(run_func, 900, 1, &counter, thread_a_check, "A");
     threads.push_back(ret);
     // Thread B
-    ret = new thread(run_func, 900, 2, &counter, thread_a_check);
+    ret = new thread(run_func, 900, 2, &counter, thread_a_check, "B");
     threads.push_back(ret);
     // Thread C
-    ret = new thread(run_func, 900, -1, &counter, thread_c_check);
+    ret = new thread(run_func, 900, -1, &counter, thread_c_check, "C");
     threads.push_back(ret);
     // Thread D
-    ret = new thread(run_func, 900, -3, &counter, thread_d_check);
+    ret = new thread(run_func, 900, -3, &counter, thread_d_check, "D");
     threads.push_back(ret);
 
-    std::this_thread::sleep_for(std::chrono::seconds(3600));
+    g_running = true;
+    while (g_running == true)
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
     
     return 0;
 }

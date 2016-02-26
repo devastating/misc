@@ -1,0 +1,7 @@
+Compilation
+1. Compiler: GCC 4.7 or above (with std11 support)
+2. Cmd:
+g++ -std=c++11 -pthread -g print_thread.cpp -o <executable_name>
+
+Note:
+1. It uses std::thread instead of pthread
