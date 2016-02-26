@@ -1,0 +1,8 @@
+Compilation:
+
+1. Compiler: GCC 4.7 or above (with std11 support)
+2. Cmds:
+Server: g++ -Wall -std=c++11 -g -pthread socket_utilities.cpp socket_server.cpp -o <server_bin>
+Client: g++ -Wall -std=c++11 -g -pthread socket_utilities.cpp socket_client.cpp -o <client_bin>
+3. Right now, a hard-coded user/passwd combination is used in server/client
+4. std::thread is used instead of pthread library to save time

@@ -4,6 +4,7 @@
 #include <sys/un.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <signal.h>
 #include <thread>
 #include <mutex>
 #include <chrono>
@@ -18,6 +19,8 @@ using std::cout;
 using std::endl;
 using std::condition_variable;
 
+static bool g_running = false;
+
 uint64_t get_ts_ns()
 {
     struct timeval tv;
@@ -28,17 +31,23 @@ uint64_t get_ts_ns()
 
 static void ack_recv_thread_fn(void *ctxt, bool *acked);
 
+void client_fn(void *ctxt);
+
 class socket_client
 {
     public:
         socket_client(bool is_tcp)
         {
             m_tcp = is_tcp;
+            m_fd = -1;
+            m_thread = nullptr;
         }
         bool start(string server_addr, string user, string passwd)
         {
             struct sockaddr_un addr;
 
+            unique_lock<mutex> lck(m_mtx);
+            
             // FIXME - tcp/udp support
             m_fd = socket(AF_UNIX, SOCK_STREAM, 0);
             if (m_fd == -1)
@@ -59,6 +68,16 @@ class socket_client
                 return false;
             }
 
+            m_user = user;
+            m_passwd = passwd;
+            m_thread = new thread(client_fn, this);
+            m_stop = false;
+            cout << "Client " << m_user << " started\n";
+            return true;
+        }
+
+        void run()
+        {
             // First send conn req
             bool err;
             if (ready_to_write(m_fd, 1000, &err))
@@ -66,8 +85,8 @@ class socket_client
                 conn_req_msg req_msg;
                 req_msg.hdr.type = CONN_REQ;
                 req_msg.hdr.len = sizeof(req_msg);
-                strncpy(req_msg.name, user.c_str(), sizeof(req_msg.name));
-                strncpy(req_msg.passwd, passwd.c_str(), sizeof(req_msg.passwd));
+                strncpy(req_msg.name, m_user.c_str(), sizeof(req_msg.name));
+                strncpy(req_msg.passwd, m_passwd.c_str(), sizeof(req_msg.passwd));
                 int written = write_fd(m_fd, reinterpret_cast<char *>(&req_msg), sizeof(req_msg), 1000);
                 if (written != sizeof(req_msg))
                 {
@@ -84,12 +103,12 @@ class socket_client
                 if (lcl_hdr.type != CONN_SUCCEED)
                 {
                     // We are not allowed to connect..
-                    cout << "User not allowed\n";
-                    return false;
+                    cout << "ERROR: User not allowed\n";
+                    m_stop = true;
                 }
             }
 
-            while(true)
+            while(m_stop == false)
             {
                 if (ready_to_write(m_fd, 1000, &err))
                 {
@@ -103,14 +122,21 @@ class socket_client
                     bool acked = false;
                     while (retry <= 5)
                     {
+                        int written = write_fd(m_fd, reinterpret_cast<char *>(&client_ts), sizeof(client_ts), 1000);
+                        if (written != sizeof(client_ts))
+                        {
+                            // Cannot write whole msg. for now
+                            cout << "ERROR: send TS to server\n";
+                        }
                         auto ack_thread = thread(ack_recv_thread_fn, this,
                                                  &acked);
-                        unique_lock<mutex> lck(m_mtx);
+                        unique_lock<mutex> lck(m_ack_mtx);
                         // Wait for 7 seconds at most
                         m_cv.wait_for(lck, std::chrono::seconds(7));
                         ack_thread.join();
                         if (acked)
                         {
+                            cout << "INFO: Server acked\n";
                             break;
                         }
                         retry++;
@@ -118,13 +144,28 @@ class socket_client
                     if (acked == false)
                     {
                         // Server did not respond after 5 retry
+                        cout << "ERROR: server does not respond after 5 retries\n";
                         break;
                     }
                 }
             }
         }
 
-        bool stop();
+        void stop()
+        {
+            unique_lock<mutex> lck(m_mtx);
+            if (m_fd == -1)
+            {
+                return;
+            }
+            m_stop = true;
+            lck.unlock();
+            m_thread->join();
+            m_thread = nullptr;
+            m_fd = -1;
+            cout << "Client " << m_user << " stopped\n";
+        }
+
         void ack_recv_thread(bool *acked)
         {
             // To read ACK in 2 second
@@ -143,10 +184,21 @@ class socket_client
     private:
         int m_fd;
         bool m_tcp;
+        bool m_stop;
         string m_addr;
         mutex m_mtx;
+        mutex m_ack_mtx;
         condition_variable m_cv;
+        thread *m_thread;
+        string m_user;
+        string m_passwd;
 };
+
+void client_fn(void *ctxt)
+{
+    auto sock_cli = reinterpret_cast<socket_client *>(ctxt);
+    sock_cli->run();
+}
 
 void ack_recv_thread_fn(void *ctxt, bool *acked)
 {
@@ -154,9 +206,23 @@ void ack_recv_thread_fn(void *ctxt, bool *acked)
     sock_cli->ack_recv_thread(acked);
 }
 
+void sig_handler(int signum)
+{
+    g_running = false;
+}
+
 int main()
 {
+    signal(SIGINT, sig_handler);
     socket_client client(true);
-    client.start("test_socket", "test_user1", "passwd");
+    if (client.start("test_socket", "test_user1", "passwd"))
+    {
+        g_running = true;
+        while (g_running)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
+        client.stop();
+    }
     return 0;
 }

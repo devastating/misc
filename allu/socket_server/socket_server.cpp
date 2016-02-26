@@ -1,4 +1,5 @@
 #include <string>
+#include <chrono>
 #include <vector>
 #include <thread>
 #include <condition_variable>
@@ -13,6 +14,7 @@
 #include <unistd.h>
 #include <poll.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <assert.h>
 #include "socket_utilities.hpp"
 #include "msg.hpp"
@@ -23,34 +25,64 @@ using std::endl;
 using std::map;
 using std::thread;
 using std::vector;
+using std::mutex;
+using std::unique_lock;
+
+static bool g_running = false;
 
 void thread_fn(void *srv, int fd);
+void server_run_fn(void *srv);
 
 class sock_server
 {
     public:
         explicit sock_server(string addr)
         {
+            m_srv_thread = nullptr;
             m_addr = addr;
+            m_sock = -1;
         }
         ~sock_server()
         {
         }
         bool start()
         {
+            unique_lock<mutex> lck(m_mtx);
+            
+            if (m_sock != -1)
+            {
+                // Server already running
+                return false;
+            }
+
             m_sock = init_server_sock(m_addr);
             if (m_sock == -1)
             {
                 cout << "cannot create socket\n";
                 return false;
             }
+            assert(m_srv_thread == nullptr);
             m_stop = false;
-            run();
+            m_srv_thread = new thread(server_run_fn, this);
+            cout << "INFO: server running\n";
+            return true;
         }
-        bool stop()
+        void stop()
         {
+            unique_lock<mutex> lck(m_mtx);
+            if (m_sock == -1)
+            {
+                return;
+            }
             m_stop = true;
+            lck.unlock();
+
+            assert(m_srv_thread);
+            m_srv_thread->join();
+            m_srv_thread = nullptr;
             destroy_sock(m_addr);
+            m_sock = -1;
+            cout << "INFO: server stopped\n";
         }
         void run()
         {
@@ -92,7 +124,7 @@ class sock_server
                 hdr = reinterpret_cast<msg_hdr *>(buffer);
                 if (hdr->type == CONN_REQ)
                 {
-                    cout << "Conn REQ\n";
+                    cout << "INFO: Conn REQ\n";
                     // Check if user/password
                     read_bytes += read_fd(conn_sock, &buffer[sizeof(msg_hdr)],
                                           hdr->len - sizeof(msg_hdr), 100);
@@ -107,11 +139,16 @@ class sock_server
                     if (user_iter == users->end())
                     {
                         // Abort this connection
-                        cout << "User " << new_user << " has invalid passwd\n";
+                        cout << "INFO: User " << new_user << " not authorized\n";
+                        break;
+                    }
+                    if (user_iter->second != passwd)
+                    {
+                        cout << "INFO: User " << new_user << " entered invalid passwd\n";
                         break;
                     }
                     valid_user = true;
-                    cout << "User " << new_user << " is valid\n";
+                    cout << "INFO: User " << new_user << " is valid\n";
                     // Write connection succeed
                     conn_succeed_msg succeed_msg;
                     succeed_msg.hdr.type = CONN_SUCCEED;
@@ -126,7 +163,7 @@ class sock_server
                 }
                 else if (hdr->type == CLIENT_TS)
                 {
-                    cout << "Client TS\n";
+                    cout << "INFO: Client TS\n";
                     read_bytes += read_fd(conn_sock, &buffer[sizeof(msg_hdr)],
                                           hdr->len - sizeof(msg_hdr), 100);
                     assert(read_bytes == sizeof(client_ts_msg));
@@ -146,13 +183,13 @@ class sock_server
                                            sizeof(ack_msg), 100);
                     if (written != sizeof(ack_msg))
                     {
-                        cout << "Cannot send ACK\n";
+                        cout << "ERROR: Cannot send ACK\n";
                         break;
                     }
                 }
                 else
                 {
-                    cout << "unknows msg type " << hdr->type << endl;
+                    cout << "ERROR: unknows msg type " << hdr->type << endl;
                     break;
                 }
             }
@@ -166,6 +203,8 @@ class sock_server
         bool m_stop;
         map<string, string> m_users;
         vector<thread *> m_threads;
+        thread *m_srv_thread;
+        mutex m_mtx;
 };
 
 void thread_fn(void *ctxt, int fd)
@@ -176,10 +215,32 @@ void thread_fn(void *ctxt, int fd)
     srv->conn_handler(fd, &user_info);
 }
 
+void server_run_fn(void *ctxt)
+{
+    auto srv = reinterpret_cast<sock_server *>(ctxt);
+
+    srv->run();
+}
+
+void sig_handler(int signum)
+{
+    g_running = false;
+}
+
 int main()
 {
+    signal(SIGINT, sig_handler);
+    // For testing - allowed user/passwd
     sock_server srv("test_socket");
     srv.set_user_info("test_user1", "passwd");
-    srv.start();
+    if (srv.start() == true)
+    {
+        g_running = true;
+    }
+    while (g_running)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+    srv.stop();
     return 0;
 }
