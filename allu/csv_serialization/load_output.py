@@ -1,5 +1,6 @@
 import numpy as np
 import struct
+import sys
 
 COL_STRUCT = "!l"
 DOUBLE_STRUCT = "!d"
@@ -34,4 +35,15 @@ def load_from(file):
                 row_array = []
     return np.array(matrix)
 
-load_from("output.bin")
+
+def main():
+    if len(sys.argv) != 2:
+        print "Usage:", __file__, "<path of binary to load>"
+        raise Exception
+    load_from("output.bin")
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        sys.exit(1);
