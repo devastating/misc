@@ -10,7 +10,7 @@ PY_FILES=`ls -lR --time-style="long-iso" | egrep '^-' | awk '{print $8}' | egrep
 PY_SOUCE=""
 for PY_FILE in ${PY_FILES}
 do
-    if [[ "$PY_FILE" =~ py$ ]]; then
+    if [[ "$PY_FILE" == *\.py ]]; then
         PY_SOURCE="${PY_FILE%.*}"
     else
         py_file="${PY_FILE%.*}"
